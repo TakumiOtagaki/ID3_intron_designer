@@ -30,8 +30,13 @@ class ViennaRNAPartition:
         fc = self.RNA.fold_compound(seq)
         ss, mfe = fc.mfe()
         fc.exp_params_rescale(mfe)
-        energy = fc.pf()
-        return fc, energy
+        pf_result = fc.pf()
+        if isinstance(pf_result, (list, tuple)):
+            # ViennaRNA returns (structure, energy); keep the energy term
+            energy = pf_result[-1]
+        else:
+            energy = pf_result
+        return fc, float(energy)
 
     def ensemble_free_energy(self, sequence: str) -> float:
         """
