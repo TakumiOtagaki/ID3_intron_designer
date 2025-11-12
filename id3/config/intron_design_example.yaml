@@ -1,0 +1,23 @@
+### Example configuration for intron-aware structural optimization
+
+# Multi-FASTA input (>5utr, >main, >3utr entries)
+structure_fasta: data/intron/chimera.fa
+
+# Protein information
+protein_seq: MGSVSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATYGKLTLKFICTTGKLPVPWPTLVTTLTYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGNYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKVNFKIRVSIKVTRQVSRQRRLLRF
+
+
+# Constraint / optimization settings
+constraint: lagrangian
+mode: det.hard
+iterations: 200
+learning_rate: 0.01
+
+# Structural penalty weights
+efe_weight: 2.0        # Larger weight strengthens the -EFE penalty
+boundary_weight: 0.5   # Smaller value when only gentle boundary relaxation is needed
+
+# Window definitions
+window_upstream: 60
+window_downstream: 30
+boundary_flank: 3
