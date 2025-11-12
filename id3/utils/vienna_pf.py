@@ -50,16 +50,12 @@ class ViennaRNAPartition:
         Compute the full base-pair probability matrix for the sequence.
         """
         fc, _ = self._fold_compound(sequence)
-        length = len(sequence)
-        matrix = np.zeros((length, length), dtype=np.float32)
-        for i in range(length):
-            ip1 = i + 1
-            for j in range(i + 1, length):
-                jp1 = j + 1
-                prob = fc.bpp(ip1, jp1)
-                if prob > 0:
-                    matrix[i, j] = prob
-                    matrix[j, i] = prob
+        raw = fc.bpp()  # tuple-of-tuples with 1-based indexing padding
+        matrix = np.array(raw, dtype=np.float32)
+        if matrix.ndim != 2:
+            raise RuntimeError("Unexpected BPP matrix shape from ViennaRNA")
+        # Drop the 0-index padding row/column
+        matrix = matrix[1:, 1:]
         return matrix
 
 
