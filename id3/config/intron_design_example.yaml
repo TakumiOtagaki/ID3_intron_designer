@@ -10,12 +10,15 @@ protein_seq: MGSVSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATYGKLTLKFICTTGKLPVPWPTLVTTL
 # Constraint / optimization settings
 constraint: lagrangian
 mode: det.hard
-iterations: 10
-learning_rate: 0.01
+iterations: 50
+learning_rate: 0.05
+
+# Sampling settings (number of sequences to sample from final probability profile)
+sample_count: 5
 
 # Structural penalty weights
 efe_weight: 1.0        # Larger weight strengthens the -EFE penalty
-boundary_weight: 10.0   # Smaller value when only gentle boundary relaxation is needed
+boundary_weight: 30.0   # Smaller value when only gentle boundary relaxation is needed
 
 # Window definitions
 window_upstream: 60
