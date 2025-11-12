@@ -20,6 +20,7 @@ import argparse
 import torch
 import os
 from tqdm import tqdm
+import yaml
 
 # ID3 Operational Modes (Table 1 from paper)
 MODE_CONFIG = {
@@ -29,21 +30,43 @@ MODE_CONFIG = {
     'sto.hard': {'alpha': 0.1, 'beta': 1},   # Stochastic, Hard output
 }
 
-# Check DeepRaccess availability
-project_root = Path(__file__).parent
-# Check multiple possible locations for DeepRaccess
-possible_deepraccess_dirs = [
-    project_root / "DeepRaccess",           # Primary: project root
-    project_root / "scripts" / "DeepRaccess"  # Fallback: scripts directory
-]
+def apply_config_overrides(args):
+    """Override argparse namespace with values from YAML config, if provided."""
+    config_path = getattr(args, 'config', None)
+    if not config_path:
+        return args
 
-deepraccess_dir = None
-for dir_path in possible_deepraccess_dirs:
-    if dir_path.exists():
-        deepraccess_dir = dir_path
-        break
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
 
-if deepraccess_dir is None:
+    with open(path, 'r') as handle:
+        data = yaml.safe_load(handle) or {}
+
+    if not isinstance(data, dict):
+        raise ValueError(f"Config file {path} must contain a key-value mapping.")
+
+    for key, value in data.items():
+        attr = key.replace('-', '_')
+        if hasattr(args, attr):
+            setattr(args, attr, value)
+        else:
+            raise ValueError(f"Unknown config key '{key}' in {path}")
+
+    return args
+
+def ensure_deepraccess_available():
+    """Ensure DeepRaccess dependency exists before running accessibility mode."""
+    project_root = Path(__file__).parent
+    possible_dirs = [
+        project_root / "DeepRaccess",
+        project_root / "scripts" / "DeepRaccess"
+    ]
+
+    for dir_path in possible_dirs:
+        if dir_path.exists():
+            return
+
     print("\n" + "="*70)
     print("⚠️  DeepRaccess Not Found")
     print("="*70)
@@ -52,13 +75,11 @@ if deepraccess_dir is None:
     print("This will take ~30 seconds with internet connection.")
     print("="*70 + "\n")
 
-    # Automatically run setup script in non-interactive mode
     import subprocess
     setup_script = project_root / "scripts" / "setup_deepraccess.sh"
     if setup_script.exists():
         try:
-            # Run setup with -y flag for non-interactive mode
-            result = subprocess.run(
+            subprocess.run(
                 ["bash", str(setup_script), "-y"],
                 check=True,
                 capture_output=False
@@ -79,8 +100,9 @@ if deepraccess_dir is None:
 from id3.constraints.lagrangian import LagrangianConstraint
 from id3.constraints.amino_matching import AminoMatchingSoftmax
 from id3.constraints.codon_profile import CodonProfileConstraint
-from id3.utils.deepraccess_wrapper import DeepRaccessID3Wrapper
 from id3.utils.sequence_utils import sequence_to_one_hot
+from id3.utils.intron_design import IntronDesignContext
+from id3.utils.vienna_pf import ViennaRNAPartition, compute_intron_losses
 
 
 def load_protein_from_file(fasta_file):
@@ -126,8 +148,161 @@ def get_default_utrs():
         return "GGGAAAUAAGAGAGAAAAGAAGAGUAAGAAGAAAUAUAAGAGCCACC", "UGAA"
 
 
+def run_intron_structural_optimization(args):
+    """Optimize exon sequence with intron-aware ViennaRNA losses."""
+    if not args.structure_fasta:
+        raise ValueError("--structure-fasta is required for intron-aware optimization")
+
+    print("\n" + "="*70)
+    print("ID3 Framework - Intron-aware Structural Optimization")
+    print("="*70)
+
+    if args.protein_file:
+        protein_seq = load_protein_from_file(args.protein_file)
+        print(f"\nLoaded protein from: {args.protein_file}")
+    else:
+        protein_seq = args.protein_seq
+
+    intron_context = IntronDesignContext(
+        fasta_path=args.structure_fasta,
+        amino_acid_sequence=protein_seq
+    )
+    context_info = intron_context.describe()
+    print(f"\n5' UTR length: {context_info['utr5_length']} nt")
+    print(f"3' UTR length: {context_info['utr3_length']} nt")
+    print(f"Main transcript length: {context_info['main_length']} nt")
+    print(f"Designable exon length: {context_info['design_length']} nt")
+    print(f"Detected introns: {context_info['num_introns']}")
+
+    vienna = ViennaRNAPartition()
+    window_ranges = intron_context.get_intron_window_ranges(
+        upstream=args.window_upstream,
+        downstream=args.window_downstream
+    )
+    boundary_indices = intron_context.get_boundary_indices(flank=args.boundary_flank)
+
+    print("\n" + "-"*70)
+    print("Configuration")
+    print("-"*70)
+    print(f"Constraint type: {args.constraint}")
+    print(f"Operational mode: {args.mode}")
+    print(f"EFE weight: {args.efe_weight}")
+    print(f"Boundary weight: {args.boundary_weight}")
+    print(f"Window upstream/downstream: {args.window_upstream}/{args.window_downstream} nt")
+    print(f"Boundary flank size: {args.boundary_flank} nt\n")
+
+    constraint_classes = {
+        'lagrangian': LagrangianConstraint,
+        'amino_matching': AminoMatchingSoftmax,
+        'codon_profile': CodonProfileConstraint
+    }
+    ConstraintClass = constraint_classes[args.constraint]
+    constraint = ConstraintClass(
+        amino_acid_sequence=protein_seq,
+        batch_size=1,
+        device=args.device,
+        enable_cai=True,
+        cai_target=args.cai_target,
+        cai_weight=args.cai_weight,
+        adaptive_lambda_cai=True,
+        verbose=args.verbose
+    )
+
+    optimizer = torch.optim.Adam(constraint.parameters(), lr=args.learning_rate)
+
+    best_total_loss = float('inf')
+    best_seq = None
+    best_metrics = {'efe': None, 'boundary': None}
+    best_constraint_component = None
+    history = {
+        'total_loss': [],
+        'constraint': [],
+        'efe': [],
+        'boundary': [],
+        'rna_sequences': [],
+        'discrete_sequences': []
+    }
+
+    mode_params = MODE_CONFIG[args.mode]
+    alpha = mode_params['alpha']
+    beta = mode_params['beta']
+
+    pbar = tqdm(range(args.iterations), desc="Optimizing", ncols=100)
+    for iteration in pbar:
+        optimizer.zero_grad()
+
+        result = constraint.forward(alpha=alpha, beta=beta)
+        discrete_seq = result['discrete_sequence']
+        constraint_loss = result.get('constraint_loss', torch.tensor(0.0, device=constraint.device if hasattr(constraint, 'device') else torch.device(args.device)))
+        if not isinstance(constraint_loss, torch.Tensor):
+            constraint_loss = torch.tensor(constraint_loss, dtype=torch.float32, device=torch.device(args.device))
+
+        full_sequence = intron_context.build_full_sequence(discrete_seq, uppercase=True)
+        efe_loss, boundary_loss = compute_intron_losses(
+            vienna=vienna,
+            full_sequence=full_sequence,
+            window_ranges=window_ranges,
+            boundary_indices=boundary_indices
+        )
+
+        base_device = constraint_loss.device
+        efe_tensor = torch.tensor(efe_loss, dtype=torch.float32, device=base_device)
+        boundary_tensor = torch.tensor(boundary_loss, dtype=torch.float32, device=base_device)
+
+        structural_weighted = args.efe_weight * efe_tensor + args.boundary_weight * boundary_tensor
+        total_loss = constraint_loss + structural_weighted
+
+        total_loss.backward()
+        optimizer.step()
+
+        history['total_loss'].append(total_loss.item())
+        history['constraint'].append(constraint_loss.item())
+        history['efe'].append(efe_loss)
+        history['boundary'].append(boundary_loss)
+        history['rna_sequences'].append(result['rna_sequence'].detach().cpu().numpy().tolist())
+        history['discrete_sequences'].append(discrete_seq)
+
+        pbar.set_postfix({
+            'loss': f'{total_loss.item():.4f}',
+            'efe': f'{efe_loss:.2f}',
+            'bpp': f'{boundary_loss:.2f}'
+        })
+
+        weighted_value = total_loss.item()
+        if weighted_value < best_total_loss:
+            best_total_loss = weighted_value
+            best_seq = discrete_seq
+            best_metrics = {
+                'efe': efe_loss,
+                'boundary': boundary_loss
+            }
+            best_constraint_component = constraint_loss.item()
+
+    pbar.close()
+
+    if best_seq is None:
+        print("No feasible design found.")
+        return
+
+    final_full = intron_context.build_full_sequence(best_seq, uppercase=True)
+
+    print("\n" + "-"*70)
+    print("Optimization Summary")
+    print("-"*70)
+    print(f"Best total loss: {best_total_loss:.4f}")
+    if best_constraint_component is not None:
+        print(f"  - Constraint component: {best_constraint_component:.4f}")
+    print(f"  - Window -EFE: {best_metrics['efe']:.4f}")
+    print(f"  - Boundary sum: {best_metrics['boundary']:.4f}")
+    print(f"Best exon sequence: {best_seq[:60]}{'...' if len(best_seq) > 60 else ''}")
+    print(f"Full pre-mRNA (with UTRs): {final_full[:60]}{'...' if len(final_full) > 60 else ''}")
+
+
 def run_accessibility_optimization(args):
     """Run ID3 optimization with accessibility prediction"""
+
+    ensure_deepraccess_available()
+    from id3.utils.deepraccess_wrapper import DeepRaccessID3Wrapper
 
     print("\n" + "="*70)
     print("ID3 Framework - Full Demo (with DeepRaccess)")
@@ -470,11 +645,23 @@ Note: First run will prompt to auto-install DeepRaccess if not found
     )
 
     parser.add_argument(
+        '--config',
+        type=str,
+        help='YAML config file whose keys override CLI arguments'
+    )
+
+    parser.add_argument(
         '--constraint',
         type=str,
         choices=['lagrangian', 'amino_matching', 'codon_profile'],
         default='lagrangian',
         help='Constraint mechanism (default: lagrangian)'
+    )
+
+    parser.add_argument(
+        '--structure-fasta',
+        type=str,
+        help="Multi-FASTA file with entries '>5utr', '>main', '>3utr' for intron-aware design"
     )
 
     parser.add_argument(
@@ -526,6 +713,41 @@ Note: First run will prompt to auto-install DeepRaccess if not found
     )
 
     parser.add_argument(
+        '--efe-weight',
+        type=float,
+        default=1.0,
+        help='Weight for intron window -EFE loss'
+    )
+
+    parser.add_argument(
+        '--boundary-weight',
+        type=float,
+        default=1.0,
+        help='Weight for intron boundary pairing loss'
+    )
+
+    parser.add_argument(
+        '--window-upstream',
+        type=int,
+        default=60,
+        help='Number of nucleotides upstream of intron to include in EFE windows'
+    )
+
+    parser.add_argument(
+        '--window-downstream',
+        type=int,
+        default=30,
+        help='Number of nucleotides downstream of intron to include in EFE windows'
+    )
+
+    parser.add_argument(
+        '--boundary-flank',
+        type=int,
+        default=3,
+        help='Number of nucleotides at each intron boundary to penalize via BPP'
+    )
+
+    parser.add_argument(
         '--device',
         type=str,
         default='cuda' if torch.cuda.is_available() else 'cpu',
@@ -557,9 +779,13 @@ Note: First run will prompt to auto-install DeepRaccess if not found
     )
 
     args = parser.parse_args()
+    args = apply_config_overrides(args)
 
     try:
-        run_accessibility_optimization(args)
+        if args.structure_fasta:
+            run_intron_structural_optimization(args)
+        else:
+            run_accessibility_optimization(args)
     except Exception as e:
         print(f"\n❌ Error: {e}")
         if args.verbose:
