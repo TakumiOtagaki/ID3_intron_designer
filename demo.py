@@ -132,6 +132,11 @@ def load_utr_from_file(utr_file):
     return sequence.upper().replace('T', 'U')
 
 
+def _rna_to_dna(seq: str) -> str:
+    """Convert RNA tokens to DNA tokens, preserving case (U/u -> T/t)."""
+    return seq.replace('U', 'T').replace('u', 't')
+
+
 def get_default_utrs():
     """Get default UTR sequences from data/utr_templates/"""
     project_root = Path(__file__).parent
@@ -308,15 +313,22 @@ def run_intron_structural_optimization(args):
     else:
         print(f"  - Window -EFE: {best_metrics['efe_loss']:.4f}")
     print(f"  - Boundary sum (lower better): {best_metrics['boundary']:.4f}")
-    print(f"Best exon sequence: {best_seq[:60]}{'...' if len(best_seq) > 60 else ''}")
-    print(f"Full pre-mRNA (with UTRs): {final_full[:60]}{'...' if len(final_full) > 60 else ''}")
+    # Output in DNA alphabet (ATGC) for intron mode only
+    best_exon_dna = _rna_to_dna(best_seq)
+    final_full_dna = _rna_to_dna(final_full)
+    print(f"Best exon sequence: {best_exon_dna[:60]}{'...' if len(best_exon_dna) > 60 else ''}")
+    print(f"Full pre-mRNA (with UTRs): {final_full_dna[:60]}{'...' if len(final_full_dna) > 60 else ''}")
     if args.structure_output:
         main_with_case = intron_context.rebuild_main_with_exons(best_seq)
+        # Convert all sequences to DNA for saved output in intron mode
+        utr5_dna = _rna_to_dna(intron_context.utr5)
+        main_with_case_dna = _rna_to_dna(main_with_case)
+        utr3_dna = _rna_to_dna(intron_context.utr3)
         output_path = write_intron_multifasta(
             args.structure_output,
-            intron_context.utr5,
-            main_with_case,
-            intron_context.utr3
+            utr5_dna,
+            main_with_case_dna,
+            utr3_dna
         )
         print(f"\nSaved multi-FASTA with optimized exon design to: {output_path}")
 
