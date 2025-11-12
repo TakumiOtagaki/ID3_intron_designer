@@ -103,6 +103,7 @@ from id3.constraints.codon_profile import CodonProfileConstraint
 from id3.utils.sequence_utils import sequence_to_one_hot
 from id3.utils.intron_design import IntronDesignContext
 from id3.utils.vienna_pf import ViennaRNAPartition, compute_intron_losses
+from id3.utils.intron_io import write_intron_multifasta
 
 
 def load_protein_from_file(fasta_file):
@@ -217,7 +218,8 @@ def run_intron_structural_optimization(args):
     history = {
         'total_loss': [],
         'constraint': [],
-        'efe': [],
+        'efe_loss': [],
+        'raw_efe': [],
         'boundary': [],
         'rna_sequences': [],
         'discrete_sequences': []
@@ -233,12 +235,18 @@ def run_intron_structural_optimization(args):
 
         result = constraint.forward(alpha=alpha, beta=beta)
         discrete_seq = result['discrete_sequence']
-        constraint_loss = result.get('constraint_loss', torch.tensor(0.0, device=constraint.device if hasattr(constraint, 'device') else torch.device(args.device)))
-        if not isinstance(constraint_loss, torch.Tensor):
-            constraint_loss = torch.tensor(constraint_loss, dtype=torch.float32, device=torch.device(args.device))
+        base_device = constraint.theta.device if hasattr(constraint, 'theta') else torch.device(args.device)
+        constraint_loss = result.get(
+            'constraint_penalty',
+            result.get('constraint_loss', torch.tensor(0.0, device=base_device))
+        )
+        if isinstance(constraint_loss, torch.Tensor):
+            constraint_loss = constraint_loss.to(base_device)
+        else:
+            constraint_loss = torch.tensor(constraint_loss, dtype=torch.float32, device=base_device)
 
         full_sequence = intron_context.build_full_sequence(discrete_seq, uppercase=True)
-        efe_loss, boundary_loss = compute_intron_losses(
+        efe_loss, boundary_loss, raw_efes = compute_intron_losses(
             vienna=vienna,
             full_sequence=full_sequence,
             window_ranges=window_ranges,
@@ -257,7 +265,8 @@ def run_intron_structural_optimization(args):
 
         history['total_loss'].append(total_loss.item())
         history['constraint'].append(constraint_loss.item())
-        history['efe'].append(efe_loss)
+        history['efe_loss'].append(efe_loss)
+        history['raw_efe'].append(raw_efes)
         history['boundary'].append(boundary_loss)
         history['rna_sequences'].append(result['rna_sequence'].detach().cpu().numpy().tolist())
         history['discrete_sequences'].append(discrete_seq)
@@ -273,7 +282,8 @@ def run_intron_structural_optimization(args):
             best_total_loss = weighted_value
             best_seq = discrete_seq
             best_metrics = {
-                'efe': efe_loss,
+                'efe_loss': efe_loss,
+                'raw_efe': raw_efes,
                 'boundary': boundary_loss
             }
             best_constraint_component = constraint_loss.item()
@@ -292,10 +302,23 @@ def run_intron_structural_optimization(args):
     print(f"Best total loss: {best_total_loss:.4f}")
     if best_constraint_component is not None:
         print(f"  - Constraint component: {best_constraint_component:.4f}")
-    print(f"  - Window -EFE: {best_metrics['efe']:.4f}")
-    print(f"  - Boundary sum: {best_metrics['boundary']:.4f}")
+    if best_metrics['raw_efe']:
+        avg_raw = sum(best_metrics['raw_efe']) / len(best_metrics['raw_efe'])
+        print(f"  - Window -EFE (opt target ↑ raw EFE): {best_metrics['efe_loss']:.4f} | raw avg {avg_raw:.4f}")
+    else:
+        print(f"  - Window -EFE: {best_metrics['efe_loss']:.4f}")
+    print(f"  - Boundary sum (lower better): {best_metrics['boundary']:.4f}")
     print(f"Best exon sequence: {best_seq[:60]}{'...' if len(best_seq) > 60 else ''}")
     print(f"Full pre-mRNA (with UTRs): {final_full[:60]}{'...' if len(final_full) > 60 else ''}")
+    if args.structure_output:
+        main_with_case = intron_context.rebuild_main_with_exons(best_seq)
+        output_path = write_intron_multifasta(
+            args.structure_output,
+            intron_context.utr5,
+            main_with_case,
+            intron_context.utr3
+        )
+        print(f"\nSaved multi-FASTA with optimized exon design to: {output_path}")
 
 
 def run_accessibility_optimization(args):
@@ -424,7 +447,12 @@ def run_accessibility_optimization(args):
         discrete_seq = result['discrete_sequence']
 
         # Get constraint loss and CAI loss
-        constraint_loss = result.get('constraint_loss', torch.tensor(0.0))
+        base_device = constraint.theta.device if hasattr(constraint, 'theta') else torch.device(args.device)
+        constraint_loss = result.get('constraint_penalty', result.get('constraint_loss', torch.tensor(0.0, device=base_device)))
+        if isinstance(constraint_loss, torch.Tensor):
+            constraint_loss = constraint_loss.to(base_device)
+        else:
+            constraint_loss = torch.tensor(constraint_loss, dtype=torch.float32, device=base_device)
         cai_loss = result.get('cai_loss', torch.tensor(0.0))
         cai_value = result.get('cai_metadata', {}).get('final_cai', 0.0)
 
@@ -745,6 +773,12 @@ Note: First run will prompt to auto-install DeepRaccess if not found
         type=int,
         default=3,
         help='Number of nucleotides at each intron boundary to penalize via BPP'
+    )
+
+    parser.add_argument(
+        '--structure-output',
+        type=str,
+        help='Optional path to save final UTR/main multi-FASTA with optimized exons'
     )
 
     parser.add_argument(
