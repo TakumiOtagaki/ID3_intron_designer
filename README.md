@@ -40,6 +40,7 @@ git submodule update --init --recursive
 # Install dependencies via the Python package manager (preferred)
 uv sync
 . .venv/bin/activate
+# or `pip install -r requirements.txt`
 
 # Run demo - DeepRaccess will be set up automatically
 bash run_demo.sh
