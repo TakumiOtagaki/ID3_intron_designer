@@ -228,6 +228,14 @@ Constraint → Soft Probabilities → DeepRaccess → Accessibility Loss → Bac
 
 ## IntronAwaredExonDesigner structural workflow
 
+### Quick start
+```sh
+uv sync
+. .venv/bin/activate
+uv run python demo.py --config "id3/config/IntronAwaredExonDesigner.yaml" # please edit this yaml file to change hyper parameters.
+```
+
+### detail description
 The `demo.py` CLI now doubles as the IntronAwaredExonDesigner driver. Add `--structure-fasta`
 to redesign exon-only regions (uppercase) while keeping introns fixed (lowercase). The flow
 reuses the same constraints, hyper-parameters, and optimizer, but computes ViennaRNA-based
