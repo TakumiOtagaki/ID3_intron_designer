@@ -233,6 +233,8 @@ Constraint → Soft Probabilities → DeepRaccess → Accessibility Loss → Bac
 uv sync
 . .venv/bin/activate
 uv run python demo.py --config "id3/config/IntronAwaredExonDesigner.yaml" # please edit this yaml file to change hyper parameters.
+# you can obtain the result files: `outputs/chimera_optimized_multi.fa`.
+  # please look at the `output` directory.
 ```
 
 ### detail description
