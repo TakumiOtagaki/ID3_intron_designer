@@ -14,7 +14,7 @@ iterations: 100
 learning_rate: 0.05
 
 # Sampling settings (number of sequences to sample from final probability profile)
-sample_count: 5
+sample_count: 30
 
 # Structural penalty weights
 efe_weight: 1.0        # Larger weight strengthens the -EFE penalty
