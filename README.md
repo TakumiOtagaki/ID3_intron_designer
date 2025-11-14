@@ -233,7 +233,7 @@ stay unpaired.
 - optimized UTR/main multi-FASTA (`--output-file`)
 - loss-curve PNGs (`outputs/intron_loss_curve.png`)
 - optional sampled exon sequences (`--sample-count`)
-  * The multi-FASTA now bundles the best design plus every sampled exon variant; each header reports window `-EFE` and the boundary BPP sum for quick quality comparison, and the CLI prints a short pandas-style summary table per run.
+  * The multi-FASTA now bundles the best design plus every sampled exon variant; each header reports window `-EFE` (averaged across all intron windows) and the boundary BPP sum for quick quality comparison, and the CLI prints a short pandas-style summary table per run.
 
 `id3/apps/exon_driven_structural.py` handles this workflow through
 `IntronAwaredExonDesignerContext`, and `_docs/intron_awared_exon_designer_refactor_plan.md`

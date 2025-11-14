@@ -155,6 +155,8 @@ def run_intron_awared_exon_structural_optimization(args):
         'efe_loss': [],
         'raw_efe': [],
         'boundary': [],
+        'weighted_efe': [],
+        'weighted_boundary': [],
         'rna_sequences': [],
         'discrete_sequences': []
     }
@@ -187,9 +189,9 @@ def run_intron_awared_exon_structural_optimization(args):
             boundary_indices=boundary_indices
         )
 
-        efe_tensor = torch.tensor(efe_loss, dtype=torch.float32, device=base_device)
-        boundary_tensor = torch.tensor(boundary_loss, dtype=torch.float32, device=base_device)
-        structural_weighted = args.efe_weight * efe_tensor + args.boundary_weight * boundary_tensor
+        weighted_efe = args.efe_weight * efe_loss
+        weighted_boundary = args.boundary_weight * boundary_loss
+        structural_weighted = weighted_efe + weighted_boundary
         total_loss = constraint_loss + structural_weighted
 
         total_loss.backward()
@@ -200,6 +202,8 @@ def run_intron_awared_exon_structural_optimization(args):
         history['efe_loss'].append(efe_loss)
         history['raw_efe'].append(raw_efes)
         history['boundary'].append(boundary_loss)
+        history['weighted_efe'].append(weighted_efe)
+        history['weighted_boundary'].append(weighted_boundary)
         if rna_probs_current.dim() == 2:
             rna_probs_store = rna_probs_current.detach().cpu().numpy().tolist()
         else:
@@ -272,8 +276,8 @@ def run_intron_awared_exon_structural_optimization(args):
         xs = list(range(len(history['total_loss'])))
         _plt.figure(figsize=(8, 5))
         _plt.plot(xs, history['total_loss'], label='total')
-        _plt.plot(xs, history['efe_loss'], label='window_-EFE')
-        _plt.plot(xs, history['boundary'], label='boundary_sum')
+        _plt.plot(xs, history['weighted_efe'], label='window_-EFE × efe_weight')
+        _plt.plot(xs, history['weighted_boundary'], label='boundary_bpp × boundary_weight')
         _plt.plot(xs, history['constraint'], label='constraint')
         _plt.xlabel('iteration')
         _plt.ylabel('loss')
