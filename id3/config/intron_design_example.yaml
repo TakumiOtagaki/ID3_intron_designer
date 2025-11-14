@@ -1,7 +1,7 @@
 ### Example configuration for intron-aware structural optimization
 
 # Multi-FASTA input (>5utr, >main, >3utr entries)
-structure_fasta: data/intron/chimera.fa
+structure_fasta: data/Intron_and_Exon/chimera.fa
 
 # Protein information
 protein_seq: MGSVSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATYGKLTLKFICTTGKLPVPWPTLVTTLTYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGNYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKVNFKIRHNIEDGSVQLADHYQQNTPIGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITLGMDELYKRSHMHLE
@@ -21,9 +21,9 @@ efe_weight: 1.0        # Larger weight strengthens the -EFE penalty
 boundary_weight: 30.0   # Smaller value when only gentle boundary relaxation is needed
 
 # Window definitions
-window_upstream: 60
-window_downstream: 30
-boundary_flank: 3
+window_upstream: 60 # # intron 上流の 最大 何塩基分の exon 領域を結合して ensemble free energy を計算して大きくするか（下と同時に）
+window_downstream: 30 # intron 下流の 最大 何塩基分の exon 領域を結合して ensemble free energy を計算して大きくするか（上と同時に）
+boundary_flank: 3 # intron の 5'/3' prime それぞれの端の何塩基の塩基確率の合計 \sum_{i = 0, 1, 2} p(5'end + i) p(3'end - i| stem) を小さくするか
 
 # Output
 structure_output: outputs/chimera_optimized.fa
