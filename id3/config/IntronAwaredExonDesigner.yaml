@@ -10,7 +10,7 @@ protein_seq: MGSVSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATYGKLTLKFICTTGKLPVPWPTLVTTL
 # Constraint / optimization settings
 constraint: lagrangian
 mode: det.hard
-iterations: 50
+iterations: 100
 learning_rate: 0.05
 
 # Sampling settings (number of sequences to sample from final probability profile)
