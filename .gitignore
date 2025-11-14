@@ -48,7 +48,7 @@ checkpoints/
 
 # Data and results
 results/
-outputs/
+# outputs/
 logs/
 *.log
 
