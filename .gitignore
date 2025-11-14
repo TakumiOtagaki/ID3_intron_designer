@@ -58,8 +58,6 @@ logs/
 !id3/experiments/**/*.json
 !examples/**/*.json
 
-# DeepRaccess (external dependency)
-DeepRaccess/
 
 # Temporary files
 *.tmp

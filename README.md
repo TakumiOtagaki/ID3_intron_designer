@@ -251,6 +251,7 @@ share.
 ```bash
 uv --version
 # brew install uv # if uv is not installed in your system, please execute this line.
+uv init
 uv sync
 ```
 
@@ -294,6 +295,16 @@ python demo.py --constraint amino_matching
 # Codon Profile Constraint
 python demo.py --constraint codon_profile
 ```
+
+## DeepRaccess submodule
+
+The repository now tracks DeepRaccess as a git submodule. After cloning `ID3_with_IntronAwaredExonDesigner`, run:
+
+```bash
+git submodule update --init --recursive
+```
+
+Then `DeepRaccess` will be available under the repo root and `run_demo.sh` will be able to invoke it without re-cloning. This also means any future updates to DeepRaccess can be pulled via `git submodule update --remote`.
 
 ## Citation
 

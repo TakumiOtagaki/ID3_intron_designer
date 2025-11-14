@@ -32,19 +32,17 @@ echo "  Iterations: $ITERATIONS"
 echo "  Output: $OUTPUT_DIR"
 echo ""
 
-# Step 0: Check and setup DeepRaccess if needed
+# Step 0: Verify DeepRaccess submodule is initialized
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Step 0: Checking DeepRaccess dependency..."
+echo "Step 0: Verifying DeepRaccess dependency..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ ! -d "$SCRIPT_DIR/DeepRaccess" ]; then
-    echo -e "${YELLOW}⚠️  DeepRaccess not found. Installing automatically...${NC}"
-    echo ""
-    # Run setup in non-interactive mode with -y flag
-    bash "$SCRIPT_DIR/scripts/setup_deepraccess.sh" -y
-    echo ""
+    echo -e "${YELLOW}⚠️  DeepRaccess submodule not initialized.${NC}"
+    echo "Run \`git submodule update --init --recursive\` and retry."
+    exit 1
 else
-    echo -e "${GREEN}✓ DeepRaccess found${NC}"
+    echo -e "${GREEN}✓ DeepRaccess submodule is present${NC}"
     echo ""
 fi
 
