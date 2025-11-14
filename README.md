@@ -230,10 +230,7 @@ reuses the same constraints, hyper-parameters, and optimizer, but computes Vienn
 window (-60/+30 around each intron) `-EFE` losses plus boundary BPP penalties so splice sites
 stay unpaired.
 
-Use `--efe-weight`, `--boundary-weight`, `--window-upstream/downstream`, and
-`--boundary-flank` to tune the structural pressure. Saved outputs include:
-
-- optimized UTR/main multi-FASTA (`--structure-output`)
+- optimized UTR/main multi-FASTA (`--output-file`)
 - TSV mutation lists and loss-curve PNGs
 - optional sampled exon sequences and summary JSON (`--sample-count`)
   * The multi-FASTA now bundles the best design plus every sampled exon variant, and each header carries the window `-EFE`, boundary BPP sum, and average raw EFE so you can assess quality directly from the label.
