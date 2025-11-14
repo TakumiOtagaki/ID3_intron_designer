@@ -11,14 +11,14 @@ protein_seq: MGSVSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATYGKLTLKFICTTGKLPVPWPTLVTTL
 constraint: lagrangian
 mode: det.hard
 iterations: 100
-learning_rate: 0.05
+learning_rate: 0.02
 
 # Sampling settings (number of sequences to sample from final probability profile)
 sample_count: 30
 
 # Structural penalty weights
 efe_weight: 1.0        # Larger weight strengthens the -EFE penalty
-boundary_weight: 30.0   # Smaller value when only gentle boundary relaxation is needed
+boundary_weight: 50.0   # Smaller value when only gentle boundary relaxation is needed
 
 # Window definitions
 window_upstream: 60 # # intron 上流の 最大 何塩基分の exon 領域を結合して ensemble free energy を計算して大きくするか（下と同時に）
