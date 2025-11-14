@@ -1,4 +1,5 @@
-Structural metrics (boundary BPP / window -EFE):
+# just copy-pasted from the standard output of running the IntronAwaredExonDesigner structural workflow
+Structural metrics (boundary BPP / window -EFE): 
            boundary_bpp        efe
 label                             
 baseline       1.779427 -48.211773
