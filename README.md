@@ -256,8 +256,8 @@ share.
 ```bash
 uv --version
 # brew install uv # if uv is not installed in your system, please execute this line.
-uv init
 uv sync
+. .venv/bin/activate
 ```
 
 
