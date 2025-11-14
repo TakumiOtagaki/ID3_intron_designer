@@ -261,11 +261,12 @@ def run_intron_awared_exon_structural_optimization(args):
     else:
         print("Warning: exon length mismatch when computing mutations; skipping list.")
 
+    output_file_path = args.output_file
     loss_png_path = None
     try:
         import matplotlib.pyplot as _plt
 
-        base_dir = Path(args.structure_output).parent if args.structure_output else Path("outputs")
+        base_dir = Path(output_file_path).parent if output_file_path else Path("outputs")
         base_dir.mkdir(parents=True, exist_ok=True)
         loss_png = base_dir / "intron_loss_curve.png"
         xs = list(range(len(history['total_loss'])))
@@ -327,8 +328,8 @@ def run_intron_awared_exon_structural_optimization(args):
     else:
         print("\nNo base changes in exon design (identical to original).")
 
-    if args.structure_output:
-        output_path = Path(args.structure_output)
+    if output_file_path:
+        output_path = Path(output_file_path)
         sample_n = int(getattr(args, 'sample_count', 0) or 0)
         sampled_candidates = []
         if sample_n > 0:
