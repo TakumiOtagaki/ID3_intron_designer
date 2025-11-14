@@ -35,7 +35,7 @@ Design the exon segments of a pre-mRNA sequence such that:
 
 4. **Integration**
    - Extend `demo.py` (and the unified experiment path) to:
-     - Load the multi-FASTA input and initialize `IntronDesignContext`.
+  - Load the multi-FASTA input and initialize `ExonDrivenDesignContext`.
      - Run constraint.forward with `beta=1` when computing ViennaRNA-based losses so that discrete sequences feed ViennaRNA, while STE keeps gradients flowing.
      - Combine the weighted EFE and boundary losses into the objective optimized by the existing loop.
    - Ensure the loss hooks are available to config-based workflows so experiments can enable/disable structural penalties consistently.
