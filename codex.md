@@ -6,7 +6,9 @@
  * そもそも intron_designer ではないんですよね、intron は固定して exon を可変にするからね。以下の 研究 background などを鑑みて良い名前を考えてみて。
     * --> Exon-Driven Designer に決定!!
 この辺をどうにかしたいと思っています。
+
 要件定義や refactoring plan を考えてみてくれないか？
+refactoring に際しては関数名に、少し Exon-Driven Designer を匂わせるような感じにしてね。前の intron designer は名前が悪すぎるから.
 
 
 注意：日本語で回答してね。
