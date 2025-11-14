@@ -1,5 +1,5 @@
 """
-Exon-Driven Designer: intron-aware structural optimization runner.
+IntronAwaredExonDesigner: intron-aware structural optimization runner.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from id3.apps.constants import MODE_CONFIG
 from id3.constraints.lagrangian import LagrangianConstraint
 from id3.constraints.amino_matching import AminoMatchingSoftmax
 from id3.constraints.codon_profile import CodonProfileConstraint
-from id3.utils.exon_driven_design import ExonDrivenDesignContext
+from id3.utils.intron_design import IntronAwaredExonDesignerContext
 from id3.utils.sequence_io import load_protein_sequence, rna_to_dna
 from id3.utils.vienna_pf import ViennaRNAPartition, compute_intron_losses
 from id3.utils.intron_io import write_intron_multifasta
@@ -46,20 +46,20 @@ def _load_protein_sequence(args):
     return args.protein_seq
 
 
-def run_exon_driven_structural_optimization(args):
+def run_intron_awared_exon_structural_optimization(args):
     """Optimizes exon codons so that intron windows are destabilized."""
     if not args.structure_fasta:
         raise ValueError("--structure-fasta is required for intron-aware optimization")
 
     print("\n" + "=" * 70)
-    print("Exon-Driven Designer - Structural Optimization")
+    print("IntronAwaredExonDesigner - Structural Optimization")
     print("=" * 70)
 
     protein_seq = _load_protein_sequence(args)
     if args.protein_file:
         print(f"\nLoaded protein from: {args.protein_file}")
 
-    context = ExonDrivenDesignContext(
+    context = IntronAwaredExonDesignerContext(
         fasta_path=args.structure_fasta,
         amino_acid_sequence=protein_seq
     )
@@ -387,4 +387,3 @@ def run_exon_driven_structural_optimization(args):
             print(f"Saved structural summary to: {json_path}")
         except Exception as exc:
             print(f"Warning: failed to save structural summary: {exc}")
-

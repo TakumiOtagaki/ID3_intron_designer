@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Lightweight CLI for the ID3 Exon-Driven Designer demo workflows.
+Lightweight CLI for the ID3 IntronAwaredExonDesigner demo workflows.
 
-This script dispatches either the DeepRaccess accessibility demo or the exon-aware
-intron structural sampler depending on the provided arguments.
+This script dispatches either the DeepRaccess accessibility demo or the intron-aware
+structural sampler depending on the provided arguments.
 """
 
 import sys
@@ -16,7 +16,7 @@ import torch
 import yaml
 
 from id3.apps.accessibility_runner import run_accessibility_optimization
-from id3.apps.exon_driven_structural import run_exon_driven_structural_optimization
+from id3.apps.exon_driven_structural import run_intron_awared_exon_structural_optimization
 
 
 def apply_config_overrides(args):
@@ -47,7 +47,7 @@ def apply_config_overrides(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='ID3 Exon-Driven Designer demo driver',
+        description='ID3 IntronAwaredExonDesigner demo driver',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -75,7 +75,7 @@ Examples:
     parser.add_argument(
         '--structure-fasta',
         type=str,
-        help="Multi-FASTA file with '>5utr', '>main', '>3utr' for the exon-driven structural demo"
+        help="Multi-FASTA file with '>5utr', '>main', '>3utr' for the IntronAwaredExonDesigner structural demo"
     )
     parser.add_argument('--utr5-file', type=str, help='5\' UTR sequence file (default: data/utr_templates/5utr_templates.txt)')
     parser.add_argument('--utr3-file', type=str, help='3\' UTR sequence file (default: data/utr_templates/3utr_templates.txt)')
@@ -108,7 +108,7 @@ Examples:
 
     try:
         if args.structure_fasta:
-            run_exon_driven_structural_optimization(args)
+            run_intron_awared_exon_structural_optimization(args)
         else:
             run_accessibility_optimization(args)
     except Exception as exc:

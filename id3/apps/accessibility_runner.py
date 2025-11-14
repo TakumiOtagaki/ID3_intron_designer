@@ -1,5 +1,5 @@
 """
-Exon-Driven Designer: accessibility optimization runner (DeepRaccess).
+IntronAwaredExonDesigner: accessibility optimization runner (DeepRaccess).
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def _load_utrs(args):
 def run_accessibility_optimization(args):
     """Run ID3 optimization with DeepRaccess-based accessibility loss."""
     print("\n" + "=" * 70)
-    print("Exon-Driven Designer - Full Accessibility Demo")
+    print("IntronAwaredExonDesigner - Full Accessibility Demo")
     print("=" * 70)
 
     protein_seq = _load_protein_sequence(args)

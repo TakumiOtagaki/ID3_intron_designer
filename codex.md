@@ -4,11 +4,11 @@
 お願いや悩み
  * adhoc な coding をやりまくったせいで、元々のID3 repo との差分の部分がかなり煩雑になっていて、refactoring をしたいと考えています。
  * そもそも intron_designer ではないんですよね、intron は固定して exon を可変にするからね。以下の 研究 background などを鑑みて良い名前を考えてみて。
-    * --> Exon-Driven Designer に決定!!
+    * --> IntronAwaredExonDesigner に決定!!
 この辺をどうにかしたいと思っています。
 
 要件定義や refactoring plan を考えてみてくれないか？
-refactoring に際しては関数名に、少し Exon-Driven Designer を匂わせるような感じにしてね。前の intron designer は名前が悪すぎるから.
+refactoring に際しては関数名に、少し IntronAwaredExonDesigner を匂わせるような感じにしてね。前の intron designer は名前が悪すぎるから.
 
 
 注意：日本語で回答してね。
@@ -49,4 +49,3 @@ RNAスプライシングは、pre-mRNAからイントロンが除去され、エ
     * **イントロンの5'末端（例: 3塩基）**と **3'末端（例: 3塩基）**が、配列全体を見た時に**塩基対を形成しない (unpaired)** という厳格な制約（ハードコンストレイント）を課します。
 
 この最適化により、`ID3_intron_designer` は、アミノ酸配列を変えることなく、スプライソソームがアクセスしやすい「開いた」RNA構造を持つ配列を設計し、スプライシング効率の最大化を目指します。
-

@@ -1,5 +1,5 @@
 """
-Utilities for the Exon-Driven Designer workflow.
+Utilities for the IntronAwaredExonDesigner workflow.
 
 This module parses multi-FASTA inputs (5'UTR / main / 3'UTR),
 tracks exon/intron layouts, and provides helpers for rebuilding
@@ -69,9 +69,9 @@ class Segment:
     is_exon: bool
 
 
-class ExonDrivenDesignContext:
+class IntronAwaredExonDesignerContext:
     """
-    Context for the Exon-Driven Designer: map uppercase exons back into the full transcript.
+    Context for the IntronAwaredExonDesigner: map uppercase exons back into the full transcript.
 
     Attributes:
         utr5 / utr3: Fixed UTR sequences.
@@ -190,6 +190,3 @@ class ExonDrivenDesignContext:
             'design_length': self.design_length,
             'num_introns': len(self.intron_segments)
         }
-
-
-IntronDesignContext = ExonDrivenDesignContext

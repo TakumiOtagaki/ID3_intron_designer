@@ -1,5 +1,5 @@
 """
-Utility helpers for reading/writing sequences used by the Exon-Driven Designer workflow.
+Utility helpers for reading/writing sequences used by the IntronAwaredExonDesigner workflow.
 """
 
 from pathlib import Path
