@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
-from typing import List, Dict
+from typing import Dict, List
 
 import torch
 from tqdm import tqdm
@@ -18,7 +18,53 @@ from id3.constraints.codon_profile import CodonProfileConstraint
 from id3.utils.intron_design import IntronAwaredExonDesignerContext
 from id3.utils.sequence_io import load_protein_sequence, rna_to_dna
 from id3.utils.vienna_pf import ViennaRNAPartition, compute_intron_losses
-from id3.utils.intron_io import write_intron_multifasta
+
+
+def _compute_structural_metrics(full_sequence: str, vienna, window_ranges, boundary_indices) -> Dict[str, List[float] | float]:
+    efe_loss, boundary_loss, raw_efes = compute_intron_losses(
+        vienna=vienna,
+        full_sequence=full_sequence,
+        window_ranges=window_ranges,
+        boundary_indices=boundary_indices
+    )
+    raw_avg = sum(raw_efes) / len(raw_efes) if raw_efes else 0.0
+    return {
+        'efe_loss': efe_loss,
+        'boundary': boundary_loss,
+        'raw_efe': raw_efes,
+        'raw_efe_avg': raw_avg
+    }
+
+
+def _build_candidate_entry(label: str, exon_sequence: str, context: IntronAwaredExonDesignerContext, vienna, window_ranges, boundary_indices) -> Dict:
+    main_rna = context.rebuild_main_with_exons(exon_sequence)
+    full_sequence = context.build_full_sequence(exon_sequence, uppercase=True)
+    metrics = _compute_structural_metrics(full_sequence, vienna, window_ranges, boundary_indices)
+    return {
+        'label': label,
+        'exon_rna': exon_sequence,
+        'main_rna': main_rna,
+        'full_sequence': full_sequence,
+        'metrics': metrics
+    }
+
+
+def _format_candidate_header(prefix: str, label: str, metrics: Dict[str, float]) -> str:
+    return (
+        f"{prefix} {label} | efe={metrics['efe_loss']:.2f} | "
+        f"boundary={metrics['boundary']:.2f} | raw_avg={metrics['raw_efe_avg']:.2f}"
+    )
+
+
+def _write_design_multifasta(path: Path, utr5_dna: str, utr3_dna: str, candidates: List[Dict]) -> None:
+    with open(path, 'w') as handle:
+        for candidate in candidates:
+            main_dna = rna_to_dna(candidate['main_rna'])
+            for prefix, seq in (('5utr', utr5_dna), ('main', main_dna), ('3utr', utr3_dna)):
+                header = _format_candidate_header(prefix, candidate['label'], candidate['metrics'])
+                handle.write(f">{header}\n")
+                for idx in range(0, len(seq), 60):
+                    handle.write(seq[idx:idx + 60] + "\n")
 
 
 def _build_constraint(args, protein_seq: str):
@@ -102,7 +148,6 @@ def run_intron_awared_exon_structural_optimization(args):
 
     best_total_loss = float('inf')
     best_seq = None
-    best_metrics = {'efe': None, 'boundary': None, 'raw_efe': None}
     best_constraint_component = None
     history: Dict[str, List] = {
         'total_loss': [],
@@ -172,11 +217,6 @@ def run_intron_awared_exon_structural_optimization(args):
         if weighted_value < best_total_loss:
             best_total_loss = weighted_value
             best_seq = discrete_seq
-            best_metrics = {
-                'efe_loss': efe_loss,
-                'raw_efe': raw_efes,
-                'boundary': boundary_loss
-            }
             best_constraint_component = constraint_loss.item()
 
     pbar.close()
@@ -185,7 +225,16 @@ def run_intron_awared_exon_structural_optimization(args):
         print("No feasible design found.")
         return
 
-    final_full = context.build_full_sequence(best_seq, uppercase=True)
+    best_candidate = _build_candidate_entry(
+        'best',
+        best_seq,
+        context,
+        vienna,
+        window_ranges,
+        boundary_indices
+    )
+    best_metrics = best_candidate['metrics']
+    final_full = best_candidate['full_sequence']
     final_vis = constraint.forward(alpha=0.0, beta=0.0)
     final_probs = final_vis['rna_sequence']
     if final_probs.dim() == 2:
@@ -243,8 +292,8 @@ def run_intron_awared_exon_structural_optimization(args):
     print(f"Best total loss: {best_total_loss:.4f}")
     if best_constraint_component is not None:
         print(f"  - Constraint component: {best_constraint_component:.4f}")
+    avg_raw = best_metrics['raw_efe_avg']
     if best_metrics['raw_efe']:
-        avg_raw = sum(best_metrics['raw_efe']) / len(best_metrics['raw_efe'])
         print(f"  - Window -EFE (opt target ↑ raw EFE): {best_metrics['efe_loss']:.4f} | raw avg {avg_raw:.4f}")
     else:
         print(f"  - Window -EFE: {best_metrics['efe_loss']:.4f}")
@@ -252,7 +301,7 @@ def run_intron_awared_exon_structural_optimization(args):
     init_raw_avg = (sum(baseline_raw_efes) / len(baseline_raw_efes)) if baseline_raw_efes else 0.0
     print(f"  - Initial window -EFE: {baseline_efe_loss:.4f} | raw avg {init_raw_avg:.4f}")
     print(f"  - Δ window -EFE (best - init, lower better): {best_metrics['efe_loss'] - baseline_efe_loss:+.4f}")
-    print(f"  - Δ raw EFE avg (best - init, higher better): { (avg_raw - init_raw_avg) if best_metrics['raw_efe'] else 0.0:+.4f}")
+    print(f"  - Δ raw EFE avg (best - init, higher better): {(avg_raw - init_raw_avg):+.4f}")
     print(f"  - Initial boundary sum: {baseline_boundary_loss:.4f}")
     print(f"  - Δ boundary sum (best - init, lower better): {best_metrics['boundary'] - baseline_boundary_loss:+.4f}")
     best_exon_dna = rna_to_dna(best_seq)
@@ -279,17 +328,43 @@ def run_intron_awared_exon_structural_optimization(args):
         print("\nNo base changes in exon design (identical to original).")
 
     if args.structure_output:
-        main_with_case = context.rebuild_main_with_exons(best_seq)
+        output_path = Path(args.structure_output)
+        sample_n = int(getattr(args, 'sample_count', 0) or 0)
+        sampled_candidates = []
+        if sample_n > 0:
+            try:
+                import numpy as _np
+
+                final_probs_np = final_probs.squeeze(0).detach().cpu().numpy()
+                for idx in range(sample_n):
+                    bases = []
+                    for i in range(len(context.exon_positions)):
+                        p = final_probs_np[i]
+                        p = _np.maximum(p, 1e-9)
+                        p = p / p.sum()
+                        base_idx = _np.random.choice(4, p=p)
+                        bases.append('ACGU'[base_idx])
+                    exon_rna = ''.join(bases)
+                    sampled_candidates.append(
+                        _build_candidate_entry(
+                            f'sample_{idx + 1}',
+                            exon_rna,
+                            context,
+                            vienna,
+                            window_ranges,
+                            boundary_indices
+                        )
+                    )
+            except Exception as exc:
+                print(f"Warning: failed to sample sequences: {exc}")
+
+        candidates = [best_candidate] + sampled_candidates
         utr5_dna = rna_to_dna(context.utr5)
-        main_with_case_dna = rna_to_dna(main_with_case)
         utr3_dna = rna_to_dna(context.utr3)
-        output_path = write_intron_multifasta(
-            args.structure_output,
-            utr5_dna,
-            main_with_case_dna,
-            utr3_dna
-        )
-        print(f"\nSaved multi-FASTA with optimized exon design to: {output_path}")
+        base_dir = output_path.parent
+        base_dir.mkdir(parents=True, exist_ok=True)
+        _write_design_multifasta(output_path, utr5_dna, utr3_dna, candidates)
+        print(f"\nSaved multi-FASTA with optimized and sampled sequences to: {output_path}")
 
         try:
             mut_path = Path(str(output_path)).with_suffix(".mutations.tsv")
@@ -306,43 +381,6 @@ def run_intron_awared_exon_structural_optimization(args):
         except Exception as exc:
             print(f"Warning: failed to save mutation list TSV: {exc}")
 
-        sample_n = int(getattr(args, 'sample_count', 0) or 0)
-        sampled_main_dna_list = []
-        if sample_n > 0:
-            try:
-                import numpy as _np
-
-                final_probs_np = final_probs.squeeze(0).detach().cpu().numpy()
-                sampled_exons = []
-                for s in range(sample_n):
-                    bases = []
-                    for i in range(len(context.exon_positions)):
-                        p = final_probs_np[i]
-                        p = _np.maximum(p, 1e-9)
-                        p = p / p.sum()
-                        base_idx = _np.random.choice(4, p=p)
-                        base = 'ACGU'[base_idx]
-                        bases.append(base)
-                    exon_rna = ''.join(bases)
-                    sampled_exons.append(exon_rna)
-
-                sampled_fa = Path(str(output_path)).with_suffix('.samples.fa')
-                with open(sampled_fa, 'w') as sf:
-                    for idx, exon_rna in enumerate(sampled_exons, start=1):
-                        main_chars = list(context.main_sequence)
-                        for e_i, pos in enumerate(context.exon_positions):
-                            main_chars[pos] = exon_rna[e_i]
-                        rebuilt_main_rna = ''.join(main_chars)
-                        rebuilt_main_dna = rna_to_dna(rebuilt_main_rna)
-                        sampled_main_dna_list.append(rebuilt_main_dna)
-                        header = f"main_seq_{idx}"
-                        sf.write(f">{header}\n")
-                        for i in range(0, len(rebuilt_main_dna), 60):
-                            sf.write(rebuilt_main_dna[i:i+60] + "\n")
-                print(f"Saved {sample_n} sampled main sequences to: {sampled_fa}")
-            except Exception as exc:
-                print(f"Warning: failed to sample sequences: {exc}")
-
         try:
             summary = {
                 'baseline': {
@@ -358,8 +396,10 @@ def run_intron_awared_exon_structural_optimization(args):
                 'delta': {
                     'efe_loss': best_metrics['efe_loss'] - baseline_efe_loss,
                     'boundary_sum': best_metrics['boundary'] - baseline_boundary_loss,
-                    'raw_efe_avg': ((sum(best_metrics['raw_efe']) / len(best_metrics['raw_efe'])) if best_metrics['raw_efe'] else 0.0)
-                    - ((sum(baseline_raw_efes) / len(baseline_raw_efes)) if baseline_raw_efes else 0.0)
+                    'raw_efe_avg': best_metrics['raw_efe_avg'] - (
+                        sum(baseline_raw_efes) / len(baseline_raw_efes)
+                        if baseline_raw_efes else 0.0
+                    )
                 },
                 'mutations': [
                     {
@@ -374,11 +414,15 @@ def run_intron_awared_exon_structural_optimization(args):
                 ],
                 'samples': [
                     {
-                        'header': f"main_seq_{i + 1}",
-                        'main_dna': sampled_main_dna_list[i]
-                    } for i in range(len(sampled_main_dna_list))
+                        'label': candidate['label'],
+                        'main_dna': rna_to_dna(candidate['main_rna']),
+                        'efe_loss': candidate['metrics']['efe_loss'],
+                        'boundary_sum': candidate['metrics']['boundary'],
+                        'raw_efe_avg': candidate['metrics']['raw_efe_avg']
+                    } for candidate in sampled_candidates
                 ],
-                'loss_plot': loss_png_path
+                'loss_plot': loss_png_path,
+                'multi_fasta': str(output_path)
             }
 
             json_path = Path(str(output_path)).with_suffix('.summary.json')

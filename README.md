@@ -236,6 +236,7 @@ Use `--efe-weight`, `--boundary-weight`, `--window-upstream/downstream`, and
 - optimized UTR/main multi-FASTA (`--structure-output`)
 - TSV mutation lists and loss-curve PNGs
 - optional sampled exon sequences and summary JSON (`--sample-count`)
+  * The multi-FASTA now bundles the best design plus every sampled exon variant, and each header carries the window `-EFE`, boundary BPP sum, and average raw EFE so you can assess quality directly from the label.
 
 `id3/apps/exon_driven_structural.py` handles this workflow through
 `IntronAwaredExonDesignerContext`, and `_docs/intron_awared_exon_designer_refactor_plan.md`
